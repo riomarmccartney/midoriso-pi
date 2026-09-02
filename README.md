@@ -81,8 +81,16 @@ Already correct out of the box on Pi OS Trixie — verify, don't assume:
 
 Applied on top:
 
-    # Batch writes into 10-minute groups (in /etc/fstab)
-    PARTUUID=...  /  ext4  defaults,noatime,commit=600  0  1
+    # Batch writes into daily groups (in /etc/fstab)
+    PARTUUID=...  /  ext4  defaults,noatime,commit=86400  0  1
+
+`commit=` alone is **not sufficient** — it governs only the ext4 journal. The kernel's
+page-cache flusher writes dirty pages every ~30s independently, so without the matching
+sysctl below the interval silently has almost no effect:
+
+    # /etc/sysctl.d/60-sd-wear.conf
+    vm.dirty_expire_centisecs = 8640000     # hold dirty data up to 24h
+    vm.dirty_writeback_centisecs = 360000   # flusher wakes hourly
 
     # Periodic writers. apt-daily rewrites ~147MB of package
     # indices daily; man-db rebuilds its cache.
@@ -98,7 +106,10 @@ Because `apt-daily` is off, update deliberately:
 This costs nothing in security terms here — `unattended-upgrades` is not installed, so
 nothing was being auto-installed anyway. If you ever install it, re-enable the timers.
 
-**Trade-off of `commit=600`:** up to 10 minutes of writes can be lost on an unclean power
-cut. ext4's journal still protects filesystem *metadata*, so this risks recent data rather
-than corruption. Acceptable here because the appliance holds no state worth losing — revisit
-if it ever writes real data.
+**Trade-off:** up to **24 hours** of writes can be lost on an unclean power cut. ext4's
+journal still protects filesystem *metadata*, so this risks recent data rather than
+corruption. Acceptable here because the appliance holds no state worth losing.
+
+A clean `sudo reboot` or `sudo poweroff` flushes everything, so normal shutdowns are safe.
+Only yanking the plug loses data. After editing config you care about, run `sync` — otherwise
+that edit may sit unwritten in RAM for up to a day.
