@@ -1,0 +1,7 @@
+[Unit]
+Description=Nightly shutdown at midnight
+Documentation=https://github.com/riomarmccartney/midoriso-pi
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl poweroff
