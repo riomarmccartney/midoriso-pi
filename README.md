@@ -10,7 +10,21 @@ Status display for the `upcoming` Raspberry Pi 3B — a Waveshare 1.44" LCD HAT
 | `st7735s.py` | Panel driver. Waveshare init sequence + verified geometry. |
 | `clock.py` | HH:MM view, Nimbus Sans Bold, stretched to panel height. |
 | `services.py` | Service-status polling (Vercel, Cloudflare, Slack, Figma, Claude, GitHub). |
-| `hat-clock.service` | systemd unit. |
+| `status_view.py` | Service-status view for the panel. |
+| `app.py` | Runs the display: cycles views, KEY1/2/3 to switch. |
+| `hat-display.service` | systemd unit (supersedes `hat-clock.service`). |
+
+## Controls
+
+| Button | Action |
+|---|---|
+| KEY1 | Clock, pinned |
+| KEY2 | Service status, pinned |
+| KEY3 | Toggle auto-cycle |
+
+Views auto-cycle every `HAT_CYCLE` seconds (default 8). Service polling runs on a
+background thread every `HAT_POLL` seconds (default 60), so a slow or hung endpoint
+can never stall rendering — the view loop always draws the last good result.
 
 ## Panel configuration — do not re-derive
 
