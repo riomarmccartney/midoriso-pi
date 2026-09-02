@@ -13,7 +13,6 @@ Status display for the `upcoming` Raspberry Pi 3B — a Waveshare 1.44" LCD HAT
 | `status_view.py` | Service-status view for the panel. |
 | `app.py` | Runs the display: cycles views, KEY1/2/3 to switch. |
 | `hat-display.service` | systemd unit (supersedes `hat-clock.service`). |
-| `nightly-poweroff.{service,timer}` | Clean shutdown at 00:00 local. |
 
 ## Controls
 
@@ -114,32 +113,3 @@ corruption. Acceptable here because the appliance holds no state worth losing.
 A clean `sudo reboot` or `sudo poweroff` flushes everything, so normal shutdowns are safe.
 Only yanking the plug loses data. After editing config you care about, run `sync` — otherwise
 that edit may sit unwritten in RAM for up to a day.
-
-## Nightly shutdown
-
-`nightly-poweroff.timer` powers the Pi off at 00:00 local time.
-
-    sudo systemctl enable --now nightly-poweroff.timer
-    systemctl list-timers nightly-poweroff.timer     # confirm next trigger
-
-**`Persistent=false` is essential.** With it `true`, a Pi powered on at 09:00 would see the
-missed midnight trigger as overdue and immediately shut itself down again — which looks like
-a hardware fault rather than a scheduling bug.
-
-**The Pi 3B cannot wake itself.** It has no RTC and no wake-on-timer, so after a shutdown it
-stays off until power is physically cycled. Options, if unattended restart matters:
-
-- A smart plug that cuts power overnight and restores it in the morning; the Pi boots on
-  power restore. This also makes the shutdown redundant — but a clean `poweroff` first is
-  still much kinder to the SD card than cutting power to a running system.
-- `sudo systemctl disable nightly-poweroff.timer` and leave it running instead. Idle draw on
-  a 3B is roughly 1.5 W.
-
-To cancel a shutdown already in progress: `sudo shutdown -c`.
-
-### Interaction with the write batching
-
-Deliberate and useful: `poweroff` syncs the filesystem, so the nightly shutdown forces a
-flush of anything held in the page cache under `vm.dirty_expire_centisecs=8640000`. The
-24-hour write window and a daily clean shutdown fit together — the day's writes land as one
-batch at midnight instead of trickling out.
