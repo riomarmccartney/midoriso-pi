@@ -63,3 +63,42 @@ match the ST7735S. Nothing fails loudly. Use `st7735s.py`.
     ssh pi@upcoming.local 'sudo systemctl restart hat-clock'
 
 Runtime tuning without edits: `HAT_XOFF`, `HAT_YOFF`, `HAT_VMARGIN`, `HAT_DEBUG`.
+
+## SD card wear protection
+
+The previous card failed at the controller level, so writes are kept near zero.
+Measured idle write rate after these changes: **0 bytes in 90 seconds**.
+
+Already correct out of the box on Pi OS Trixie — verify, don't assume:
+
+| Default | Effect |
+|---|---|
+| `/` mounted `noatime` | No access-time write on every read |
+| swap on **zram** | Compressed RAM, not a swapfile on the card |
+| `/tmp` on tmpfs | Scratch files never touch the card |
+| `journald Storage=volatile` | Logs live in `/run` (RAM), not `/var/log` |
+| `rsyslog` inactive | No duplicate file logging |
+
+Applied on top:
+
+    # Batch writes into 10-minute groups (in /etc/fstab)
+    PARTUUID=...  /  ext4  defaults,noatime,commit=600  0  1
+
+    # Periodic writers. apt-daily rewrites ~147MB of package
+    # indices daily; man-db rebuilds its cache.
+    sudo systemctl disable --now apt-daily.timer apt-daily-upgrade.timer man-db.timer
+
+**Keep `fstrim.timer` enabled.** TRIM lets the card's controller garbage-collect erase
+blocks; disabling it shortens card life rather than extending it.
+
+Because `apt-daily` is off, update deliberately:
+
+    sudo apt update && sudo apt full-upgrade
+
+This costs nothing in security terms here — `unattended-upgrades` is not installed, so
+nothing was being auto-installed anyway. If you ever install it, re-enable the timers.
+
+**Trade-off of `commit=600`:** up to 10 minutes of writes can be lost on an unclean power
+cut. ext4's journal still protects filesystem *metadata*, so this risks recent data rather
+than corruption. Acceptable here because the appliance holds no state worth losing — revisit
+if it ever writes real data.
